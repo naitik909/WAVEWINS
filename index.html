@@ -105,9 +105,121 @@
         .tab-content.active {
             display: block;
         }
+        .online-indicator {
+            position: relative;
+        }
+        .online-indicator::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            background: #10b981;
+            border-radius: 50%;
+            border: 2px solid #1f2937;
+        }
+        .bet-option {
+            transition: all 0.3s ease;
+            transform: scale(1);
+        }
+        .bet-option:hover {
+            transform: scale(1.02);
+        }
+        .bet-option.selected {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5);
+        }
+        .countdown-circle {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: conic-gradient(#e60000 0deg, #e60000 var(--progress, 0deg), #374151 var(--progress, 0deg));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
+        .countdown-inner {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: #1f2937;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+        .realtime-badge {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 50;
+        }
+        .winning-animation {
+            animation: winPulse 1s ease-in-out infinite;
+        }
+        @keyframes winPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .losing-animation {
+            animation: losePulse 1s ease-in-out;
+        }
+        @keyframes losePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(0.9); }
+        }
+        .error-message {
+            color: #ef4444;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .success-message {
+            color: #10b981;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .data-sync-indicator {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #3b82f6;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .data-sync-indicator.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
+    <!-- Data Sync Indicator -->
+    <div id="dataSyncIndicator" class="data-sync-indicator">
+        <i class="fas fa-sync-alt spin-animation mr-2"></i>
+        Syncing data...
+    </div>
+
+    <!-- Real-time Status Badge -->
+    <div class="realtime-badge">
+        <i class="fas fa-wifi mr-1"></i>
+        <span id="realtimeStatus">Online</span>
+    </div>
+
     <!-- Notification -->
     <div id="notification" class="notification hidden">
         <div id="notificationContent" class="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
@@ -123,6 +235,10 @@
                 <i class="fas fa-water text-6xl text-red-500 mb-4"></i>
                 <h1 class="text-3xl font-bold bg-gradient-to-r from-red-500 to-red-600 bg-clip-text text-transparent">WAVEWIN</h1>
                 <p class="text-gray-400">Color Prediction Game</p>
+                <div class="mt-4 flex items-center justify-center space-x-2">
+                    <div class="w-2 h-2 bg-green-500 rounded-full online-indicator"></div>
+                    <span class="text-sm text-green-400">Online Players: <span id="onlineCount">0</span></span>
+                </div>
             </div>
             
             <!-- Login Form -->
@@ -178,7 +294,7 @@
                 
                 <button id="signupBtn" class="w-full green-gradient text-white py-3 rounded-lg font-semibold">
                     <i class="fas fa-user-plus mr-2"></i>
-                    Sign Up
+                    Sign Up & Get ₹100 Bonus
                 </button>
                 
                 <div class="text-center">
@@ -224,6 +340,10 @@
                 <div class="flex items-center space-x-3">
                     <i class="fas fa-water text-2xl text-red-500"></i>
                     <h1 class="text-xl font-bold bg-gradient-to-r from-red-500 to-red-600 bg-clip-text text-transparent">WAVEWIN</h1>
+                    <div class="text-xs text-green-400">
+                        <i class="fas fa-circle mr-1"></i>
+                        <span id="activeUsers">0</span> online
+                    </div>
                 </div>
                 <div class="flex items-center space-x-4">
                     <div class="balance-card px-4 py-2 rounded-lg">
@@ -245,60 +365,72 @@
                     <div class="text-gray-400 text-sm mb-2">Current Period</div>
                     <div class="text-2xl font-bold text-white mb-4" id="currentPeriod">Loading...</div>
                     
-                    <div class="text-gray-400 text-sm mb-2">Time Remaining</div>
-                    <div class="text-4xl font-bold text-red-500" id="countdown">00:30</div>
+                    <div class="countdown-circle mb-4">
+                        <div class="countdown-inner">
+                            <span id="countdown">30</span>
+                        </div>
+                    </div>
                     
                     <div class="mt-4">
                         <div id="bettingStatus" class="text-green-400 text-sm">
                             <i class="fas fa-circle text-green-400 mr-2"></i>Betting Open
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">
+                            Active Bets: <span id="activeBetsCount">0</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Betting Section -->
                 <div id="bettingSection" class="bg-gray-800 rounded-xl p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-white mb-4">Select Color</h3>
+                    <h3 class="text-lg font-semibold text-white mb-4">
+                        <i class="fas fa-palette mr-2"></i>Select Color
+                    </h3>
                     
                     <!-- Color Buttons -->
                     <div class="grid grid-cols-3 gap-4 mb-6">
-                        <button class="bet-color-btn red-gradient p-4 rounded-xl text-white font-semibold text-lg" data-color="red" data-multiplier="1.96">
+                        <button class="bet-option bet-color-btn red-gradient p-4 rounded-xl text-white font-semibold text-lg" data-color="red" data-multiplier="1.96">
                             <div>Red</div>
                             <div class="text-sm opacity-80">1:1.96</div>
                         </button>
-                        <button class="bet-color-btn violet-gradient p-4 rounded-xl text-white font-semibold text-lg" data-color="violet" data-multiplier="2.9">
+                        <button class="bet-option bet-color-btn violet-gradient p-4 rounded-xl text-white font-semibold text-lg" data-color="violet" data-multiplier="2.9">
                             <div>Violet</div>
                             <div class="text-sm opacity-80">1:2.9</div>
                         </button>
-                        <button class="bet-color-btn green-gradient p-4 rounded-xl text-white font-semibold text-lg" data-color="green" data-multiplier="1.96">
+                        <button class="bet-option bet-color-btn green-gradient p-4 rounded-xl text-white font-semibold text-lg" data-color="green" data-multiplier="1.96">
                             <div>Green</div>
                             <div class="text-sm opacity-80">1:1.96</div>
                         </button>
                     </div>
 
                     <!-- Number Buttons -->
-                    <h3 class="text-lg font-semibold text-white mb-4">Select Number</h3>
+                    <h3 class="text-lg font-semibold text-white mb-4">
+                        <i class="fas fa-hashtag mr-2"></i>Select Number
+                    </h3>
                     <div class="grid grid-cols-5 gap-3 mb-6">
-                        <button class="bet-number-btn number-button bg-violet-600 hover:bg-violet-700 p-3 rounded-lg text-white font-semibold" data-number="0" data-multiplier="8.9">0</button>
-                        <button class="bet-number-btn number-button bg-green-600 hover:bg-green-700 p-3 rounded-lg text-white font-semibold" data-number="1" data-multiplier="8.9">1</button>
-                        <button class="bet-number-btn number-button bg-red-600 hover:bg-red-700 p-3 rounded-lg text-white font-semibold" data-number="2" data-multiplier="8.9">2</button>
-                        <button class="bet-number-btn number-button bg-green-600 hover:bg-green-700 p-3 rounded-lg text-white font-semibold" data-number="3" data-multiplier="8.9">3</button>
-                        <button class="bet-number-btn number-button bg-red-600 hover:bg-red-700 p-3 rounded-lg text-white font-semibold" data-number="4" data-multiplier="8.9">4</button>
-                        <button class="bet-number-btn number-button bg-violet-600 hover:bg-violet-700 p-3 rounded-lg text-white font-semibold" data-number="5" data-multiplier="8.9">5</button>
-                        <button class="bet-number-btn number-button bg-red-600 hover:bg-red-700 p-3 rounded-lg text-white font-semibold" data-number="6" data-multiplier="8.9">6</button>
-                        <button class="bet-number-btn number-button bg-green-600 hover:bg-green-700 p-3 rounded-lg text-white font-semibold" data-number="7" data-multiplier="8.9">7</button>
-                        <button class="bet-number-btn number-button bg-red-600 hover:bg-red-700 p-3 rounded-lg text-white font-semibold" data-number="8" data-multiplier="8.9">8</button>
-                        <button class="bet-number-btn number-button bg-green-600 hover:bg-green-700 p-3 rounded-lg text-white font-semibold" data-number="9" data-multiplier="8.9">9</button>
+                        <button class="bet-option bet-number-btn number-button bg-violet-600 hover:bg-violet-700 p-3 rounded-lg text-white font-semibold" data-number="0" data-multiplier="8.9">0</button>
+                        <button class="bet-option bet-number-btn number-button bg-green-600 hover:bg-green-700 p-3 rounded-lg text-white font-semibold" data-number="1" data-multiplier="8.9">1</button>
+                        <button class="bet-option bet-number-btn number-button bg-red-600 hover:bg-red-700 p-3 rounded-lg text-white font-semibold" data-number="2" data-multiplier="8.9">2</button>
+                        <button class="bet-option bet-number-btn number-button bg-green-600 hover:bg-green-700 p-3 rounded-lg text-white font-semibold" data-number="3" data-multiplier="8.9">3</button>
+                        <button class="bet-option bet-number-btn number-button bg-red-600 hover:bg-red-700 p-3 rounded-lg text-white font-semibold" data-number="4" data-multiplier="8.9">4</button>
+                        <button class="bet-option bet-number-btn number-button bg-violet-600 hover:bg-violet-700 p-3 rounded-lg text-white font-semibold" data-number="5" data-multiplier="8.9">5</button>
+                        <button class="bet-option bet-number-btn number-button bg-red-600 hover:bg-red-700 p-3 rounded-lg text-white font-semibold" data-number="6" data-multiplier="8.9">6</button>
+                        <button class="bet-option bet-number-btn number-button bg-green-600 hover:bg-green-700 p-3 rounded-lg text-white font-semibold" data-number="7" data-multiplier="8.9">7</button>
+                        <button class="bet-option bet-number-btn number-button bg-red-600 hover:bg-red-700 p-3 rounded-lg text-white font-semibold" data-number="8" data-multiplier="8.9">8</button>
+                        <button class="bet-option bet-number-btn number-button bg-green-600 hover:bg-green-700 p-3 rounded-lg text-white font-semibold" data-number="9" data-multiplier="8.9">9</button>
                     </div>
 
                     <!-- Big/Small Section -->
-                    <h3 class="text-lg font-semibold text-white mb-4">Big or Small</h3>
+                    <h3 class="text-lg font-semibold text-white mb-4">
+                        <i class="fas fa-expand-arrows-alt mr-2"></i>Big or Small
+                    </h3>
                     <div class="grid grid-cols-2 gap-4 mb-6">
-                        <button class="bet-size-btn blue-gradient p-4 rounded-xl text-white font-semibold text-lg" data-size="small" data-multiplier="1.9">
+                        <button class="bet-option bet-size-btn blue-gradient p-4 rounded-xl text-white font-semibold text-lg" data-size="small" data-multiplier="1.9">
                             <div>Small</div>
                             <div class="text-sm opacity-80">0,1,2,3,4</div>
                             <div class="text-sm opacity-80">1:1.9</div>
                         </button>
-                        <button class="bet-size-btn orange-gradient p-4 rounded-xl text-white font-semibold text-lg" data-size="big" data-multiplier="1.9">
+                        <button class="bet-option bet-size-btn orange-gradient p-4 rounded-xl text-white font-semibold text-lg" data-size="big" data-multiplier="1.9">
                             <div>Big</div>
                             <div class="text-sm opacity-80">5,6,7,8,9</div>
                             <div class="text-sm opacity-80">1:1.9</div>
@@ -307,7 +439,9 @@
 
                     <!-- Bet Amount -->
                     <div class="mb-4">
-                        <h3 class="text-lg font-semibold text-white mb-3">Bet Amount</h3>
+                        <h3 class="text-lg font-semibold text-white mb-3">
+                            <i class="fas fa-rupee-sign mr-2"></i>Bet Amount
+                        </h3>
                         <div class="grid grid-cols-4 gap-3 mb-4">
                             <button class="bet-amount-btn bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-white font-semibold" data-amount="10">₹10</button>
                             <button class="bet-amount-btn bg-gray-700 hover:bg-gray-600 p-3 rounded-lg text-white font-semibold" data-amount="50">₹50</button>
@@ -333,14 +467,16 @@
                     </div>
 
                     <!-- Place Bet Button -->
-                    <button id="placeBetBtn" class="w-full red-gradient text-white py-4 rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <button id="placeBetBtn" class="w-full red-gradient text-white py-4 rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed pulse-animation" disabled>
                         <i class="fas fa-dice mr-2"></i>Place Bet
                     </button>
                 </div>
 
                 <!-- Recent Results -->
                 <div class="bg-gray-800 rounded-xl p-6 mb-6">
-                    <h3 class="text-lg font-semibold text-white mb-4">Recent Results</h3>
+                    <h3 class="text-lg font-semibold text-white mb-4">
+                        <i class="fas fa-history mr-2"></i>Recent Results
+                    </h3>
                     <div id="recentResults" class="flex overflow-x-auto space-x-3 pb-2">
                         <!-- Results will be displayed here -->
                     </div>
@@ -348,7 +484,9 @@
 
                 <!-- My Bets -->
                 <div class="bg-gray-800 rounded-xl p-6">
-                    <h3 class="text-lg font-semibold text-white mb-4">My Bets</h3>
+                    <h3 class="text-lg font-semibold text-white mb-4">
+                        <i class="fas fa-chart-line mr-2"></i>My Bets
+                    </h3>
                     <div id="myBets" class="space-y-3">
                         <div class="text-center text-gray-400 py-8">
                             <i class="fas fa-chart-line text-4xl mb-3"></i>
@@ -361,7 +499,9 @@
 
         <!-- Wallet Tab Content -->
         <div id="walletTabContent" class="tab-content container mx-auto px-4 py-6 pb-20">
-            <h2 class="text-2xl font-bold text-white mb-6">Wallet</h2>
+            <h2 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-wallet mr-2"></i>Wallet
+            </h2>
             
             <!-- Balance Card -->
             <div class="balance-card rounded-xl p-6 mb-6 text-center">
@@ -402,7 +542,9 @@
 
         <!-- History Tab Content -->
         <div id="historyTabContent" class="tab-content container mx-auto px-4 py-6 pb-20">
-            <h2 class="text-2xl font-bold text-white mb-6">Betting History</h2>
+            <h2 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-history mr-2"></i>Betting History
+            </h2>
             
             <!-- Filter Tabs -->
             <div class="flex space-x-2 mb-6">
@@ -410,6 +552,18 @@
                 <button class="history-filter-btn bg-gray-700 text-white px-4 py-2 rounded-lg" data-filter="win">Won</button>
                 <button class="history-filter-btn bg-gray-700 text-white px-4 py-2 rounded-lg" data-filter="loss">Lost</button>
                 <button class="history-filter-btn bg-gray-700 text-white px-4 py-2 rounded-lg" data-filter="pending">Pending</button>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-gray-800 rounded-xl p-4 text-center">
+                    <div class="text-2xl font-bold text-white" id="userTotalBets">0</div>
+                    <div class="text-sm text-gray-400">Total Bets</div>
+                </div>
+                <div class="bg-gray-800 rounded-xl p-4 text-center">
+                    <div class="text-2xl font-bold text-green-400" id="userWinRate">0%</div>
+                    <div class="text-sm text-gray-400">Win Rate</div>
+                </div>
             </div>
 
             <!-- Betting History -->
@@ -423,7 +577,9 @@
 
         <!-- Gift Tab Content -->
         <div id="giftTabContent" class="tab-content container mx-auto px-4 py-6 pb-20">
-            <h2 class="text-2xl font-bold text-white mb-6">Gift Codes</h2>
+            <h2 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-gift mr-2"></i>Gift Codes
+            </h2>
             
             <!-- Gift Code Input -->
             <div class="bg-gray-800 rounded-xl p-6 mb-6">
@@ -450,17 +606,20 @@
 
         <!-- Profile Tab Content -->
         <div id="profileTabContent" class="tab-content container mx-auto px-4 py-6 pb-20">
-            <h2 class="text-2xl font-bold text-white mb-6">Profile</h2>
+            <h2 class="text-2xl font-bold text-white mb-6">
+                <i class="fas fa-user mr-2"></i>Profile
+            </h2>
             
             <!-- User Info -->
             <div class="bg-gray-800 rounded-xl p-6 mb-6">
                 <div class="flex items-center space-x-4 mb-4">
-                    <div class="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center">
+                    <div class="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center online-indicator">
                         <i class="fas fa-user text-2xl text-white"></i>
                     </div>
                     <div>
                         <h3 class="text-xl font-semibold text-white" id="profileName">User Name</h3>
                         <p class="text-gray-400" id="profilePhone">+91 9876543210</p>
+                        <p class="text-sm text-green-400">Online</p>
                     </div>
                 </div>
                 
@@ -484,21 +643,21 @@
             <div class="bg-gray-800 rounded-xl p-6 mb-6">
                 <h3 class="text-lg font-semibold text-white mb-4">Account Settings</h3>
                 <div class="space-y-3">
-                    <button id="changePasswordBtn" class="w-full flex items-center justify-between p-3 bg-gray-700 rounded-lg text-white">
+                    <button id="changePasswordBtn" class="w-full flex items-center justify-between p-3 bg-gray-700 rounded-lg text-white hover:bg-gray-600">
                         <div class="flex items-center">
                             <i class="fas fa-key mr-3"></i>
                             <span>Change Password</span>
                         </div>
                         <i class="fas fa-chevron-right"></i>
                     </button>
-                    <button class="w-full flex items-center justify-between p-3 bg-gray-700 rounded-lg text-white">
+                    <button class="w-full flex items-center justify-between p-3 bg-gray-700 rounded-lg text-white hover:bg-gray-600">
                         <div class="flex items-center">
                             <i class="fas fa-credit-card mr-3"></i>
                             <span>Payment Methods</span>
                         </div>
                         <i class="fas fa-chevron-right"></i>
                     </button>
-                    <button id="customerSupportBtn" class="w-full flex items-center justify-between p-3 bg-gray-700 rounded-lg text-white">
+                    <button id="customerSupportBtn" class="w-full flex items-center justify-between p-3 bg-gray-700 rounded-lg text-white hover:bg-gray-600">
                         <div class="flex items-center">
                             <i class="fas fa-headset mr-3"></i>
                             <span>Customer Support</span>
@@ -569,13 +728,13 @@
                     </div>
                     
                     <div class="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded">
-                        <p class="text-sm">Pay to UPI ID: <strong>9934406008@ptsbi</strong></p>
+                        <p class="text-sm font-semibold">Pay to UPI ID: <span class="text-blue-600">9934406008@ptsbi</span></p>
                         <p class="text-sm mt-1">Enter UTR number after payment</p>
                     </div>
                 </div>
                 
                 <div class="flex space-x-4 mt-6">
-                    <button id="cancelDeposit" class="flex-1 border border-gray-600 text-gray-300 py-3 rounded-lg">Cancel</button>
+                    <button id="cancelDeposit" class="flex-1 border border-gray-600 text-gray-300 py-3 rounded-lg hover:bg-gray-700">Cancel</button>
                     <button id="confirmDeposit" class="flex-1 green-gradient text-white py-3 rounded-lg">Confirm Deposit</button>
                 </div>
             </div>
@@ -607,7 +766,7 @@
                 </div>
                 
                 <div class="flex space-x-4 mt-6">
-                    <button id="cancelWithdraw" class="flex-1 border border-gray-600 text-gray-300 py-3 rounded-lg">Cancel</button>
+                    <button id="cancelWithdraw" class="flex-1 border border-gray-600 text-gray-300 py-3 rounded-lg hover:bg-gray-700">Cancel</button>
                     <button id="confirmWithdraw" class="flex-1 red-gradient text-white py-3 rounded-lg">Request Withdrawal</button>
                 </div>
             </div>
@@ -648,7 +807,7 @@
                 </div>
                 
                 <div class="flex space-x-4 mt-6">
-                    <button id="cancelChangePassword" class="flex-1 border border-gray-600 text-gray-300 py-3 rounded-lg">Cancel</button>
+                    <button id="cancelChangePassword" class="flex-1 border border-gray-600 text-gray-300 py-3 rounded-lg hover:bg-gray-700">Cancel</button>
                     <button id="confirmChangePassword" class="flex-1 green-gradient text-white py-3 rounded-lg">Change Password</button>
                 </div>
             </div>
@@ -664,6 +823,10 @@
         let selectedBet = null;
         let bettingEnabled = true;
         let currentTab = 'game';
+        let onlineUsers = 0;
+        let heartbeatInterval = null;
+        let lastSyncTime = 0;
+        let dataSyncQueue = [];
 
         // Storage keys
         const STORAGE_KEYS = {
@@ -674,18 +837,35 @@
             giftCodes: 'wavewin_gift_codes',
             bets: 'wavewin_bets',
             results: 'wavewin_game_results',
-            adminControls: 'wavewin_admin_controls'
+            adminControls: 'wavewin_admin_controls',
+            onlineUsers: 'wavewin_online_users',
+            userSessions: 'wavewin_user_sessions',
+            lastResult: 'wavewin_last_result',
+            userRegistrations: 'wavewin_user_registrations'
         };
 
-        // Data Management Class
+        // Enhanced Data Management Class
         class DataManager {
             static setData(key, data) {
                 try {
                     const timestamp = Date.now();
-                    localStorage.setItem(key, JSON.stringify({ data, timestamp }));
+                    const dataToStore = { data, timestamp };
+                    localStorage.setItem(key, JSON.stringify(dataToStore));
+                    
+                    // Show sync indicator
+                    this.showSyncIndicator();
+                    
+                    // Trigger cross-tab communication
+                    window.dispatchEvent(new CustomEvent('dataUpdate', {
+                        detail: { key, data, timestamp }
+                    }));
+                    
+                    // Also trigger storage event for cross-tab compatibility
                     window.dispatchEvent(new StorageEvent('storage', {
                         key: key,
-                        newValue: localStorage.getItem(key)
+                        newValue: localStorage.getItem(key),
+                        oldValue: null,
+                        url: window.location.href
                     }));
                 } catch (error) {
                     console.error('Error saving data:', error);
@@ -704,73 +884,143 @@
                 }
             }
 
+            static showSyncIndicator() {
+                const indicator = document.getElementById('dataSyncIndicator');
+                indicator.classList.add('show');
+                setTimeout(() => {
+                    indicator.classList.remove('show');
+                }, 1000);
+            }
+
+            static userExists(phone) {
+                const users = this.getData(STORAGE_KEYS.users) || {};
+                return users.hasOwnProperty(phone);
+            }
+
             static saveUser(userData) {
-                // Save user in both specific key and users array
-                this.setData('wavewin_user_' + userData.phone, userData);
+                // Enhanced user saving with session management
+                userData.lastLogin = new Date().toISOString();
+                userData.sessionId = Date.now().toString();
+                userData.lastUpdated = new Date().toISOString();
                 
-                // Also save in users list
+                // Save in users collection
                 const users = this.getData(STORAGE_KEYS.users) || {};
                 users[userData.phone] = userData;
                 this.setData(STORAGE_KEYS.users, users);
+                
+                // Update user sessions
+                this.updateUserSession(userData.phone, userData.sessionId);
+                
+                return userData;
             }
 
             static getUser(phone) {
-                // First try to get from specific user key
-                const user = this.getData('wavewin_user_' + phone);
-                if (user) return user;
-                
-                // Fallback to users array (for backward compatibility)
                 const users = this.getData(STORAGE_KEYS.users) || {};
                 return users[phone] || null;
             }
 
             static updateUserBalance(phone, newBalance) {
-                const user = this.getUser(phone);
-                if (user) {
-                    user.balance = newBalance;
-                    this.saveUser(user);
+                const users = this.getData(STORAGE_KEYS.users) || {};
+                if (users[phone]) {
+                    users[phone].balance = newBalance;
+                    users[phone].lastUpdated = new Date().toISOString();
+                    this.setData(STORAGE_KEYS.users, users);
                     return true;
                 }
                 return false;
             }
 
-            static updateUserPassword(phone, newPassword) {
-                const user = this.getUser(phone);
-                if (user) {
-                    user.password = newPassword;
-                    this.saveUser(user);
+            static updateUserSession(phone, sessionId) {
+                const sessions = this.getData(STORAGE_KEYS.userSessions) || {};
+                sessions[phone] = {
+                    sessionId,
+                    lastSeen: Date.now(),
+                    isActive: true
+                };
+                this.setData(STORAGE_KEYS.userSessions, sessions);
+            }
+
+            static getOnlineUsers() {
+                const sessions = this.getData(STORAGE_KEYS.userSessions) || {};
+                const now = Date.now();
+                const activeThreshold = 60000; // 1 minute
+                
+                return Object.values(sessions).filter(session => 
+                    session.isActive && (now - session.lastSeen) < activeThreshold
+                ).length;
+            }
+
+            static updateOnlineStatus() {
+                if (currentUser) {
+                    this.updateUserSession(currentUser.phone, currentUser.sessionId || Date.now().toString());
+                }
+            }
+
+            static getAllUsers() {
+                const users = this.getData(STORAGE_KEYS.users) || {};
+                return Object.values(users);
+            }
+
+            static getUserByPhone(phone) {
+                const users = this.getData(STORAGE_KEYS.users) || {};
+                return users[phone] || null;
+            }
+
+            static updateUser(phone, updates) {
+                const users = this.getData(STORAGE_KEYS.users) || {};
+                if (users[phone]) {
+                    Object.assign(users[phone], updates);
+                    users[phone].lastUpdated = new Date().toISOString();
+                    this.setData(STORAGE_KEYS.users, users);
                     return true;
                 }
                 return false;
             }
         }
 
-        // Notification System
+        // Enhanced Notification System
         class NotificationManager {
-            static show(message, type = 'success') {
+            static show(message, type = 'success', duration = 3000) {
                 const notification = document.getElementById('notification');
                 const content = document.getElementById('notificationContent');
                 const text = document.getElementById('notificationText');
                 
-                content.className = `px-6 py-3 rounded-lg shadow-lg ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`;
+                // Set notification style based on type
+                const styles = {
+                    success: 'bg-green-500',
+                    error: 'bg-red-500',
+                    warning: 'bg-yellow-500',
+                    info: 'bg-blue-500'
+                };
+                
+                content.className = `px-6 py-3 rounded-lg shadow-lg ${styles[type]} text-white`;
                 text.textContent = message;
                 notification.classList.remove('hidden');
 
+                // Auto-hide after duration
                 setTimeout(() => {
                     notification.classList.add('hidden');
-                }, 3000);
+                }, duration);
             }
 
-            static success(message) {
-                this.show(message, 'success');
+            static success(message, duration = 3000) {
+                this.show(message, 'success', duration);
             }
 
-            static error(message) {
-                this.show(message, 'error');
+            static error(message, duration = 3000) {
+                this.show(message, 'error', duration);
+            }
+
+            static warning(message, duration = 3000) {
+                this.show(message, 'warning', duration);
+            }
+
+            static info(message, duration = 3000) {
+                this.show(message, 'info', duration);
             }
         }
 
-        // Game Engine
+        // Enhanced Game Engine
         class GameEngine {
             static generatePeriod() {
                 const now = new Date();
@@ -782,7 +1032,7 @@
                 const seconds = now.getSeconds();
                 const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
                 const roundNumber = Math.floor(totalSeconds / 30) + 1;
-                return parseInt(`${year}${month}${day}${String(roundNumber).padStart(3, '0')}`);
+                return parseInt(`${year}${month}${day}${String(roundNumber).padStart(4, '0')}`);
             }
 
             static getTimeLeft() {
@@ -801,7 +1051,18 @@
                     return result;
                 }
                 
-                // Generate random result
+                // Generate weighted random result for better game balance
+                const weights = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]; // Equal weights for fair play
+                const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+                let random = Math.random() * totalWeight;
+                
+                for (let i = 0; i < weights.length; i++) {
+                    random -= weights[i];
+                    if (random <= 0) {
+                        return i;
+                    }
+                }
+                
                 return Math.floor(Math.random() * 10);
             }
 
@@ -824,7 +1085,8 @@
                     number: result,
                     color: color,
                     size: size,
-                    time: new Date().toLocaleTimeString()
+                    time: new Date().toLocaleTimeString(),
+                    timestamp: Date.now()
                 };
 
                 // Save result
@@ -832,6 +1094,9 @@
                 results.unshift(gameResult);
                 results.splice(50); // Keep only last 50 results
                 DataManager.setData(STORAGE_KEYS.results, results);
+
+                // Save last result for synchronization
+                DataManager.setData(STORAGE_KEYS.lastResult, gameResult);
 
                 // Process bets
                 this.processBets(period, result, color, size);
@@ -847,6 +1112,7 @@
                         let isWin = false;
                         let winAmount = 0;
 
+                        // Check win conditions
                         if (bet.type === 'color' && bet.value === color) {
                             isWin = true;
                             winAmount = bet.amount * bet.multiplier;
@@ -861,19 +1127,147 @@
                         bet.status = isWin ? 'win' : 'loss';
                         bet.winAmount = winAmount;
                         bet.result = result;
+                        bet.resultColor = color;
+                        bet.resultSize = size;
+                        bet.processedAt = new Date().toISOString();
 
                         // Update user balance if win
                         if (isWin) {
-                            const user = DataManager.getUser(bet.phone);
-                            if (user) {
-                                user.balance += winAmount;
-                                DataManager.saveUser(user);
-                            }
+                            DataManager.updateUserBalance(bet.phone, 
+                                (DataManager.getUser(bet.phone)?.balance || 0) + winAmount);
                         }
                     }
                 });
 
                 DataManager.setData(STORAGE_KEYS.bets, bets);
+            }
+
+            static getActiveBetsCount() {
+                const bets = DataManager.getData(STORAGE_KEYS.bets) || [];
+                return bets.filter(bet => bet.status === 'pending').length;
+            }
+
+            static getTodaysBets() {
+                const bets = DataManager.getData(STORAGE_KEYS.bets) || [];
+                const today = new Date().toDateString();
+                return bets.filter(bet => new Date(bet.date).toDateString() === today);
+            }
+        }
+
+        // Real-time Communication System
+        class RealtimeManager {
+            static init() {
+                // Listen for data updates
+                window.addEventListener('dataUpdate', this.handleDataUpdate.bind(this));
+                window.addEventListener('storage', this.handleStorageUpdate.bind(this));
+                
+                // Start heartbeat
+                this.startHeartbeat();
+            }
+
+            static handleDataUpdate(event) {
+                const { key, data } = event.detail;
+                this.processUpdate(key, data);
+            }
+
+            static handleStorageUpdate(event) {
+                if (event.key && event.key.startsWith('wavewin_')) {
+                    try {
+                        const data = event.newValue ? JSON.parse(event.newValue).data : null;
+                        this.processUpdate(event.key, data);
+                    } catch (error) {
+                        console.error('Error processing storage update:', error);
+                    }
+                }
+            }
+
+            static processUpdate(key, data) {
+                // Update UI based on data changes
+                if (key === STORAGE_KEYS.userSessions) {
+                    this.updateOnlineCount();
+                } else if (key === STORAGE_KEYS.results) {
+                    this.updateGameResults();
+                } else if (key === STORAGE_KEYS.bets) {
+                    this.updateBetsData();
+                } else if (key === STORAGE_KEYS.lastResult) {
+                    this.handleNewResult(data);
+                } else if (key === STORAGE_KEYS.users && currentUser) {
+                    this.updateUserData();
+                }
+            }
+
+            static updateOnlineCount() {
+                const count = DataManager.getOnlineUsers();
+                document.getElementById('onlineCount').textContent = count;
+                document.getElementById('activeUsers').textContent = count;
+                onlineUsers = count;
+            }
+
+            static updateGameResults() {
+                if (currentTab === 'game') {
+                    loadRecentResults();
+                }
+            }
+
+            static updateBetsData() {
+                if (currentUser) {
+                    loadMyBets();
+                    updateActiveBetsCount();
+                }
+            }
+
+            static handleNewResult(result) {
+                if (result && currentUser) {
+                    // Show result notification
+                    this.showResultNotification(result);
+                    // Update user data after result processing
+                    setTimeout(() => {
+                        updateUserDataUI();
+                    }, 1000);
+                }
+            }
+
+            static showResultNotification(result) {
+                const resultElement = document.createElement('div');
+                resultElement.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 border-2 border-red-500 rounded-xl p-6 z-50 text-center slide-in';
+                resultElement.innerHTML = `
+                    <div class="text-white text-xl font-bold mb-2">Period ${result.period}</div>
+                    <div class="text-4xl font-bold mb-2" style="color: ${getColorCode(result.color)}">${result.number}</div>
+                    <div class="text-white">${result.color.toUpperCase()} • ${result.size.toUpperCase()}</div>
+                `;
+                document.body.appendChild(resultElement);
+                
+                setTimeout(() => {
+                    if (document.body.contains(resultElement)) {
+                        document.body.removeChild(resultElement);
+                    }
+                }, 3000);
+            }
+
+            static updateUserData() {
+                if (currentUser) {
+                    const userData = DataManager.getUser(currentUser.phone);
+                    if (userData) {
+                        currentUser = userData;
+                        DataManager.setData(STORAGE_KEYS.currentUser, userData);
+                        updateUserDataUI();
+                    }
+                }
+            }
+
+            static startHeartbeat() {
+                // Update online status every 30 seconds
+                heartbeatInterval = setInterval(() => {
+                    DataManager.updateOnlineStatus();
+                    this.updateOnlineCount();
+                }, 30000);
+            }
+
+            static stopHeartbeat() {
+                if (heartbeatInterval) {
+                    clearInterval(heartbeatInterval);
+                    heartbeatInterval = null;
+                }
             }
         }
 
@@ -882,6 +1276,41 @@
             setupEventListeners();
             checkLoginStatus();
             startGameTimer();
+            RealtimeManager.init();
+            createDemoData();
+            
+            // Update online count immediately
+            setTimeout(() => {
+                DataManager.updateOnlineStatus();
+                RealtimeManager.updateOnlineCount();
+            }, 100);
+        }
+
+        // Create demo data if none exists
+        function createDemoData() {
+            // Create demo gift codes
+            const giftCodes = DataManager.getData(STORAGE_KEYS.giftCodes) || {};
+            if (Object.keys(giftCodes).length === 0) {
+                const demoCodes = {
+                    'WELCOME100': {
+                        name: 'Welcome Bonus',
+                        amount: 100,
+                        expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                        created: new Date().toISOString(),
+                        used: false,
+                        usedBy: null
+                    },
+                    'NEWUSER50': {
+                        name: 'New User Bonus',
+                        amount: 50,
+                        expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                        created: new Date().toISOString(),
+                        used: false,
+                        usedBy: null
+                    }
+                };
+                DataManager.setData(STORAGE_KEYS.giftCodes, demoCodes);
+            }
         }
 
         // Setup event listeners
@@ -914,7 +1343,7 @@
             document.getElementById('signupBtn').addEventListener('click', handleSignup);
             document.getElementById('resetPasswordBtn').addEventListener('click', handleResetPassword);
 
-            // Back button - FIXED
+            // Back button
             document.getElementById('backButton').addEventListener('click', () => {
                 switchTab('game');
             });
@@ -983,15 +1412,15 @@
                 if (e.key === 'Enter') handleLogin();
             });
 
-            // Filter buttons
+            // History filter buttons
             document.querySelectorAll('.history-filter-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     document.querySelectorAll('.history-filter-btn').forEach(b => {
-                        b.classList.remove('bg-red-600');
+                        b.classList.remove('bg-red-600', 'active');
                         b.classList.add('bg-gray-700');
                     });
                     btn.classList.remove('bg-gray-700');
-                    btn.classList.add('bg-red-600');
+                    btn.classList.add('bg-red-600', 'active');
                     
                     const filter = btn.dataset.filter;
                     const bets = DataManager.getData(STORAGE_KEYS.bets) || [];
@@ -1006,18 +1435,14 @@
                 });
             });
 
-            // Storage event listener for real-time updates
-            window.addEventListener('storage', handleStorageChange);
-        }
-
-        // Handle storage changes for real-time updates
-        function handleStorageChange(e) {
-            if (e.key && e.key.startsWith('wavewin_')) {
-                if (currentUser) {
-                    updateUserData();
-                    updateGameData();
-                }
-            }
+            // Prevent form submission on Enter
+            document.querySelectorAll('input').forEach(input => {
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                    }
+                });
+            });
         }
 
         // Check login status
@@ -1028,13 +1453,14 @@
                 const userFromDB = DataManager.getUser(savedUser.phone);
                 if (userFromDB) {
                     currentUser = userFromDB;
-                    DataManager.setData(STORAGE_KEYS.currentUser, userFromDB); // Update with latest data
+                    DataManager.setData(STORAGE_KEYS.currentUser, userFromDB);
                     showGameScreen();
                     return;
                 }
             }
             // If no valid user found, show auth screen
             document.getElementById('authScreen').classList.remove('hidden');
+            document.getElementById('realtimeStatus').textContent = 'Offline';
         }
 
         // Handle login
@@ -1059,8 +1485,8 @@
                 return;
             }
 
-            currentUser = user;
-            DataManager.setData(STORAGE_KEYS.currentUser, user);
+            currentUser = DataManager.saveUser(user);
+            DataManager.setData(STORAGE_KEYS.currentUser, currentUser);
             hideError(errorElement);
             showGameScreen();
             NotificationManager.success('Login successful!');
@@ -1078,6 +1504,11 @@
                 return;
             }
 
+            if (name.length < 2) {
+                showError(errorElement, 'Name must be at least 2 characters');
+                return;
+            }
+
             if (phone.length !== 10 || !/^\d{10}$/.test(phone)) {
                 showError(errorElement, 'Please enter a valid 10-digit phone number');
                 return;
@@ -1089,8 +1520,7 @@
             }
 
             // Check if user already exists
-            const existingUser = DataManager.getUser(phone);
-            if (existingUser) {
+            if (DataManager.userExists(phone)) {
                 showError(errorElement, 'Phone number already registered');
                 return;
             }
@@ -1103,12 +1533,12 @@
                 balance: 100, // Welcome bonus
                 totalBets: 0,
                 totalWins: 0,
-                joinDate: new Date().toISOString()
+                joinDate: new Date().toISOString(),
+                isNew: true
             };
 
-            DataManager.saveUser(newUser);
-            currentUser = newUser;
-            DataManager.setData(STORAGE_KEYS.currentUser, newUser);
+            currentUser = DataManager.saveUser(newUser);
+            DataManager.setData(STORAGE_KEYS.currentUser, currentUser);
             
             hideError(errorElement);
             showGameScreen();
@@ -1136,20 +1566,18 @@
                 return;
             }
 
-            const user = DataManager.getUser(phone);
-            if (!user) {
+            if (!DataManager.userExists(phone)) {
                 showError(errorElement, 'Phone number not registered');
                 return;
             }
 
             // Update password
-            user.password = newPassword;
-            DataManager.saveUser(user);
+            DataManager.updateUser(phone, { password: newPassword });
             
             hideError(errorElement);
             document.getElementById('forgotPasswordForm').classList.add('hidden');
             document.getElementById('loginForm').classList.remove('hidden');
-            NotificationManager.success('Password changed successfully! Please login with new password');
+            NotificationManager.success('Password reset successful! Please login with new password');
         }
 
         // Show/hide error messages
@@ -1166,15 +1594,18 @@
         function showGameScreen() {
             document.getElementById('authScreen').classList.add('hidden');
             document.getElementById('gameScreen').classList.remove('hidden');
-            switchTab('game'); // Start with game tab
-            updateUserData();
+            document.getElementById('realtimeStatus').textContent = 'Online';
+            
+            switchTab('game');
+            updateUserDataUI();
             updateGameData();
             loadRecentResults();
             loadMyBets();
+            updateActiveBetsCount();
         }
 
         // Update user data in UI
-        function updateUserData() {
+        function updateUserDataUI() {
             if (!currentUser) return;
 
             // Refresh user data from storage
@@ -1184,8 +1615,11 @@
                 DataManager.setData(STORAGE_KEYS.currentUser, userData);
             }
 
+            // Update balance displays
             document.getElementById('userBalance').textContent = currentUser.balance.toFixed(2);
             document.getElementById('walletBalance').textContent = currentUser.balance.toFixed(2);
+            
+            // Update profile info
             document.getElementById('profileName').textContent = currentUser.name;
             document.getElementById('profilePhone').textContent = `+91 ${currentUser.phone}`;
             
@@ -1198,6 +1632,10 @@
             document.getElementById('totalBets').textContent = userBets.length;
             document.getElementById('totalWins').textContent = wins;
             document.getElementById('winRate').textContent = winRate + '%';
+            
+            // Update history stats
+            document.getElementById('userTotalBets').textContent = userBets.length;
+            document.getElementById('userWinRate').textContent = winRate + '%';
         }
 
         // Update game data
@@ -1206,15 +1644,23 @@
             document.getElementById('currentPeriod').textContent = currentPeriod;
         }
 
+        // Update active bets count
+        function updateActiveBetsCount() {
+            const activeBets = GameEngine.getActiveBetsCount();
+            document.getElementById('activeBetsCount').textContent = activeBets;
+        }
+
         // Start game timer
         function startGameTimer() {
             gameTimer = setInterval(() => {
                 timeLeft = GameEngine.getTimeLeft();
                 
-                const minutes = Math.floor(timeLeft / 60);
-                const seconds = timeLeft % 60;
-                document.getElementById('countdown').textContent = 
-                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                // Update countdown display
+                document.getElementById('countdown').textContent = timeLeft;
+                
+                // Update countdown circle
+                const progress = ((30 - timeLeft) / 30) * 360;
+                document.querySelector('.countdown-circle').style.setProperty('--progress', progress + 'deg');
 
                 // Update betting status
                 if (timeLeft <= 5) {
@@ -1229,6 +1675,9 @@
                     document.getElementById('bettingSection').classList.remove('betting-disabled');
                 }
 
+                // Update place bet button
+                updateSelectedBetDisplay();
+
                 // Process result when timer hits 0
                 if (timeLeft === 1) {
                     processGameResult();
@@ -1238,6 +1687,7 @@
                 if (timeLeft === 30) {
                     updateGameData();
                     selectedBet = null;
+                    clearBetSelection();
                     updateSelectedBetDisplay();
                 }
             }, 1000);
@@ -1251,10 +1701,18 @@
             // Update UI
             loadRecentResults();
             loadMyBets();
-            updateUserData();
-            
-            // Show result notification
-            NotificationManager.success(`Result: ${result} (${gameResult.color}, ${gameResult.size})`);
+            updateUserDataUI();
+            updateActiveBetsCount();
+        }
+
+        // Get color code for display
+        function getColorCode(color) {
+            switch(color) {
+                case 'red': return '#e60000';
+                case 'green': return '#10b981';
+                case 'violet': return '#8b5cf6';
+                default: return '#6b7280';
+            }
         }
 
         // Load recent results
@@ -1264,22 +1722,17 @@
             
             container.innerHTML = '';
             
+            if (results.length === 0) {
+                container.innerHTML = '<div class="text-gray-400 text-center py-4">No results yet</div>';
+                return;
+            }
+            
             results.slice(0, 10).forEach(result => {
                 const resultDiv = document.createElement('div');
                 resultDiv.className = 'result-ball flex-shrink-0';
                 resultDiv.textContent = result.number;
-                
-                switch(result.color) {
-                    case 'red':
-                        resultDiv.style.backgroundColor = '#e60000';
-                        break;
-                    case 'green':
-                        resultDiv.style.backgroundColor = '#10b981';
-                        break;
-                    case 'violet':
-                        resultDiv.style.backgroundColor = '#8b5cf6';
-                        break;
-                }
+                resultDiv.style.backgroundColor = getColorCode(result.color);
+                resultDiv.title = `Period: ${result.period}, Color: ${result.color}, Size: ${result.size}`;
                 
                 container.appendChild(resultDiv);
             });
@@ -1287,6 +1740,8 @@
 
         // Load my bets
         function loadMyBets() {
+            if (!currentUser) return;
+            
             const bets = DataManager.getData(STORAGE_KEYS.bets) || [];
             const userBets = bets.filter(bet => bet.phone === currentUser.phone)
                                  .sort((a, b) => new Date(b.date) - new Date(a.date))
@@ -1308,7 +1763,7 @@
             
             userBets.forEach(bet => {
                 const betDiv = document.createElement('div');
-                betDiv.className = 'bg-gray-700 rounded-lg p-4';
+                betDiv.className = `bg-gray-700 rounded-lg p-4 ${bet.status === 'win' ? 'winning-animation' : bet.status === 'loss' ? 'losing-animation' : ''}`;
                 
                 const statusClass = bet.status === 'pending' ? 'text-yellow-400' : 
                                    bet.status === 'win' ? 'text-green-400' : 'text-red-400';
@@ -1316,12 +1771,12 @@
                 betDiv.innerHTML = `
                     <div class="flex justify-between items-center mb-2">
                         <div class="text-sm text-gray-400">Period: ${bet.period}</div>
-                        <div class="text-sm ${statusClass}">${bet.status.toUpperCase()}</div>
+                        <div class="text-sm ${statusClass} font-semibold">${bet.status.toUpperCase()}</div>
                     </div>
                     <div class="flex justify-between items-center">
                         <div>
                             <div class="font-semibold">${bet.type.toUpperCase()}: ${bet.value}</div>
-                            <div class="text-sm text-gray-400">₹${bet.amount}</div>
+                            <div class="text-sm text-gray-400">Bet: ₹${bet.amount}</div>
                         </div>
                         <div class="text-right">
                             ${bet.status === 'win' ? `<div class="text-green-400 font-semibold">+₹${bet.winAmount}</div>` : ''}
@@ -1334,14 +1789,22 @@
             });
         }
 
+        // Clear bet selection
+        function clearBetSelection() {
+            document.querySelectorAll('.bet-option').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            document.querySelectorAll('.bet-amount-btn').forEach(btn => {
+                btn.classList.remove('bg-red-600');
+                btn.classList.add('bg-gray-700');
+            });
+            document.getElementById('customAmount').value = '';
+        }
+
         // Color bet selection
         function selectColorBet(button) {
-            // Clear previous selections
-            document.querySelectorAll('.bet-color-btn, .bet-number-btn, .bet-size-btn').forEach(btn => 
-                btn.classList.remove('ring-4', 'ring-white'));
-            
-            // Select this button
-            button.classList.add('ring-4', 'ring-white');
+            clearBetSelection();
+            button.classList.add('selected');
             
             selectedBet = {
                 type: 'color',
@@ -1354,12 +1817,8 @@
 
         // Number bet selection
         function selectNumberBet(button) {
-            // Clear previous selections
-            document.querySelectorAll('.bet-color-btn, .bet-number-btn, .bet-size-btn').forEach(btn => 
-                btn.classList.remove('ring-4', 'ring-white'));
-            
-            // Select this button
-            button.classList.add('ring-4', 'ring-white');
+            clearBetSelection();
+            button.classList.add('selected');
             
             selectedBet = {
                 type: 'number',
@@ -1372,12 +1831,8 @@
 
         // Size bet selection
         function selectSizeBet(button) {
-            // Clear previous selections
-            document.querySelectorAll('.bet-color-btn, .bet-number-btn, .bet-size-btn').forEach(btn => 
-                btn.classList.remove('ring-4', 'ring-white'));
-            
-            // Select this button
-            button.classList.add('ring-4', 'ring-white');
+            clearBetSelection();
+            button.classList.add('selected');
             
             selectedBet = {
                 type: 'size',
@@ -1390,7 +1845,11 @@
 
         // Bet amount selection
         function selectBetAmount(button) {
-            document.querySelectorAll('.bet-amount-btn').forEach(btn => btn.classList.remove('bg-red-600'));
+            document.querySelectorAll('.bet-amount-btn').forEach(btn => {
+                btn.classList.remove('bg-red-600');
+                btn.classList.add('bg-gray-700');
+            });
+            button.classList.remove('bg-gray-700');
             button.classList.add('bg-red-600');
             
             document.getElementById('customAmount').value = button.dataset.amount;
@@ -1399,7 +1858,10 @@
 
         // Handle custom amount input
         function handleCustomAmount() {
-            document.querySelectorAll('.bet-amount-btn').forEach(btn => btn.classList.remove('bg-red-600'));
+            document.querySelectorAll('.bet-amount-btn').forEach(btn => {
+                btn.classList.remove('bg-red-600');
+                btn.classList.add('bg-gray-700');
+            });
             updateSelectedBetDisplay();
         }
 
@@ -1418,10 +1880,23 @@
                 document.getElementById('potentialWin').textContent = potentialWin.toFixed(2);
                 
                 selectedBetDiv.classList.remove('hidden');
-                placeBetBtn.disabled = !bettingEnabled || amount > currentUser.balance;
+                
+                // Enable/disable place bet button
+                const canBet = bettingEnabled && amount > 0 && amount <= currentUser.balance;
+                placeBetBtn.disabled = !canBet;
+                
+                if (canBet) {
+                    placeBetBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    placeBetBtn.classList.add('pulse-animation');
+                } else {
+                    placeBetBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    placeBetBtn.classList.remove('pulse-animation');
+                }
             } else {
                 selectedBetDiv.classList.add('hidden');
                 placeBetBtn.disabled = true;
+                placeBetBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                placeBetBtn.classList.remove('pulse-animation');
             }
         }
 
@@ -1446,8 +1921,7 @@
             
             // Deduct amount from balance
             currentUser.balance -= amount;
-            DataManager.saveUser(currentUser);
-            DataManager.setData(STORAGE_KEYS.currentUser, currentUser);
+            DataManager.updateUser(currentUser.phone, { balance: currentUser.balance });
             
             // Create bet record
             const bet = {
@@ -1470,21 +1944,19 @@
             DataManager.setData(STORAGE_KEYS.bets, bets);
             
             // Update UI
-            updateUserData();
+            updateUserDataUI();
             loadMyBets();
+            updateActiveBetsCount();
             
             // Clear selection
             selectedBet = null;
-            document.getElementById('customAmount').value = '';
-            document.querySelectorAll('.bet-color-btn, .bet-number-btn, .bet-size-btn, .bet-amount-btn').forEach(btn => {
-                btn.classList.remove('ring-4', 'ring-white', 'bg-red-600');
-            });
+            clearBetSelection();
             updateSelectedBetDisplay();
             
             NotificationManager.success('Bet placed successfully!');
         }
 
-        // Switch tabs - FIXED FUNCTION
+        // Switch tabs
         function switchTab(tab) {
             currentTab = tab;
             
@@ -1588,8 +2060,7 @@
 
             // Update password
             currentUser.password = newPassword;
-            DataManager.saveUser(currentUser);
-            DataManager.setData(STORAGE_KEYS.currentUser, currentUser);
+            DataManager.updateUser(currentUser.phone, { password: newPassword });
             
             closeChangePasswordModal();
             NotificationManager.success('Password changed successfully!');
@@ -1605,6 +2076,11 @@
                 return;
             }
             
+            if (amount < 10) {
+                NotificationManager.error('Minimum deposit amount is ₹10');
+                return;
+            }
+            
             if (!utr) {
                 NotificationManager.error('Please enter UTR number');
                 return;
@@ -1617,7 +2093,7 @@
                 name: currentUser.name,
                 amount: amount,
                 utr: utr,
-                date: new Date().toLocaleDateString(),
+                date: new Date().toISOString(),
                 status: 'completed'
             };
             
@@ -1626,14 +2102,13 @@
             deposits.unshift(deposit);
             DataManager.setData(STORAGE_KEYS.deposits, deposits);
             
-            // Add to balance (auto-approve for now)
+            // Add to balance (auto-approve for demo)
             currentUser.balance += amount;
-            DataManager.saveUser(currentUser);
-            DataManager.setData(STORAGE_KEYS.currentUser, currentUser);
+            DataManager.updateUser(currentUser.phone, { balance: currentUser.balance });
             
-            updateUserData();
+            updateUserDataUI();
             closeDepositModal();
-            NotificationManager.success('Deposit successful!');
+            NotificationManager.success('Deposit successful! Balance updated.');
         }
 
         // Handle withdrawal
@@ -1663,7 +2138,7 @@
                 name: currentUser.name,
                 amount: amount,
                 upi: upi,
-                date: new Date().toLocaleDateString(),
+                date: new Date().toISOString(),
                 status: 'pending'
             };
             
@@ -1674,12 +2149,11 @@
             
             // Deduct from balance
             currentUser.balance -= amount;
-            DataManager.saveUser(currentUser);
-            DataManager.setData(STORAGE_KEYS.currentUser, currentUser);
+            DataManager.updateUser(currentUser.phone, { balance: currentUser.balance });
             
-            updateUserData();
+            updateUserDataUI();
             closeWithdrawModal();
-            NotificationManager.success('Withdrawal request submitted!');
+            NotificationManager.success('Withdrawal request submitted! Processing within 24 hours.');
         }
 
         // Load transaction history
@@ -1719,13 +2193,15 @@
                 transactionDiv.innerHTML = `
                     <div>
                         <div class="font-semibold">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}</div>
-                        <div class="text-sm text-gray-400">${transaction.date}</div>
+                        <div class="text-sm text-gray-400">${new Date(transaction.date).toLocaleDateString()}</div>
                         <div class="text-sm ${statusColor}">${transaction.status.toUpperCase()}</div>
                     </div>
                     <div class="text-right">
                         <div class="font-semibold ${transaction.type === 'deposit' ? 'text-green-400' : 'text-red-400'}">
                             ${transaction.type === 'deposit' ? '+' : '-'}₹${transaction.amount}
                         </div>
+                        ${transaction.utr ? `<div class="text-xs text-gray-400">UTR: ${transaction.utr}</div>` : ''}
+                        ${transaction.upi ? `<div class="text-xs text-gray-400">UPI: ${transaction.upi}</div>` : ''}
                     </div>
                 `;
                 
@@ -1832,10 +2308,9 @@
             
             // Add to balance
             currentUser.balance += giftCode.amount;
-            DataManager.saveUser(currentUser);
-            DataManager.setData(STORAGE_KEYS.currentUser, currentUser);
+            DataManager.updateUser(currentUser.phone, { balance: currentUser.balance });
             
-            updateUserData();
+            updateUserDataUI();
             document.getElementById('giftCodeInput').value = '';
             loadGiftCodeHistory();
             NotificationManager.success(`Gift code redeemed! ₹${giftCode.amount} added to your balance`);
@@ -1883,12 +2358,24 @@
 
         // Handle logout
         function handleLogout() {
+            // Clear user session
+            if (currentUser) {
+                const sessions = DataManager.getData(STORAGE_KEYS.userSessions) || {};
+                if (sessions[currentUser.phone]) {
+                    sessions[currentUser.phone].isActive = false;
+                    DataManager.setData(STORAGE_KEYS.userSessions, sessions);
+                }
+            }
+            
+            RealtimeManager.stopHeartbeat();
+            
             currentUser = null;
             DataManager.setData(STORAGE_KEYS.currentUser, null);
             
             document.getElementById('gameScreen').classList.add('hidden');
             document.getElementById('authScreen').classList.remove('hidden');
             document.getElementById('backButton').classList.add('hidden');
+            document.getElementById('realtimeStatus').textContent = 'Offline';
             
             // Reset forms
             document.getElementById('loginPhone').value = '';
@@ -1900,44 +2387,39 @@
             NotificationManager.success('Logged out successfully');
         }
 
-        // Check for withdrawal status updates
-        function checkWithdrawalUpdates() {
-            const updates = DataManager.getData('wavewin_withdrawal_updates') || [];
-            const userUpdates = updates.filter(update => update.phone === currentUser.phone);
-            
-            userUpdates.forEach(update => {
-                if (update.status === 'approved') {
-                    NotificationManager.success(`Withdrawal of ₹${update.amount} approved!`);
-                } else if (update.status === 'rejected') {
-                    NotificationManager.error(`Withdrawal of ₹${update.amount} rejected. Amount refunded.`);
-                    
-                    // Refresh user data to get updated balance
-                    const userData = DataManager.getUser(currentUser.phone);
-                    if (userData) {
-                        currentUser = userData;
-                        DataManager.setData(STORAGE_KEYS.currentUser, userData);
-                        updateUserData();
-                    }
-                }
-            });
-            
-            // Clear processed updates
-            if (userUpdates.length > 0) {
-                const remainingUpdates = updates.filter(update => update.phone !== currentUser.phone);
-                DataManager.setData('wavewin_withdrawal_updates', remainingUpdates);
-            }
-        }
-
-        // Check for updates periodically
-        setInterval(() => {
-            if (currentUser) {
-                checkWithdrawalUpdates();
-                updateUserData(); // Refresh user data for real-time balance updates
-            }
-        }, 5000);
-
         // Initialize the application
         window.addEventListener('load', init);
+
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Page is hidden
+                if (currentUser) {
+                    const sessions = DataManager.getData(STORAGE_KEYS.userSessions) || {};
+                    if (sessions[currentUser.phone]) {
+                        sessions[currentUser.phone].lastSeen = Date.now();
+                        DataManager.setData(STORAGE_KEYS.userSessions, sessions);
+                    }
+                }
+            } else {
+                // Page is visible
+                if (currentUser) {
+                    DataManager.updateOnlineStatus();
+                    RealtimeManager.updateOnlineCount();
+                }
+            }
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (currentUser) {
+                const sessions = DataManager.getData(STORAGE_KEYS.userSessions) || {};
+                if (sessions[currentUser.phone]) {
+                    sessions[currentUser.phone].isActive = false;
+                    DataManager.setData(STORAGE_KEYS.userSessions, sessions);
+                }
+            }
+        });
     </script>
 </body>
 </html>
