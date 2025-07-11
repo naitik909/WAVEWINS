@@ -149,9 +149,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 20px;
             font-weight: bold;
             color: white;
+            flex-direction: column;
         }
         .realtime-badge {
             position: fixed;
@@ -204,6 +205,16 @@
         }
         .data-sync-indicator.show {
             opacity: 1;
+        }
+        .period-display {
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            letter-spacing: 1px;
+        }
+        .timer-display {
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            color: #e60000;
         }
     </style>
 </head>
@@ -363,11 +374,11 @@
                 <!-- Current Period & Timer -->
                 <div class="bg-gray-800 rounded-xl p-6 mb-6 text-center">
                     <div class="text-gray-400 text-sm mb-2">Current Period</div>
-                    <div class="text-2xl font-bold text-white mb-4" id="currentPeriod">Loading...</div>
+                    <div class="text-2xl font-bold text-white mb-4 period-display" id="currentPeriod">Loading...</div>
                     
                     <div class="countdown-circle mb-4">
                         <div class="countdown-inner">
-                            <span id="countdown">30</span>
+                            <div class="timer-display" id="countdown">01:00</div>
                         </div>
                     </div>
                     
@@ -818,7 +829,7 @@
         // Global variables
         let currentUser = null;
         let currentPeriod = null;
-        let timeLeft = 30;
+        let timeLeft = 60;
         let gameTimer = null;
         let selectedBet = null;
         let bettingEnabled = true;
@@ -898,17 +909,14 @@
             }
 
             static saveUser(userData) {
-                // Enhanced user saving with session management
                 userData.lastLogin = new Date().toISOString();
                 userData.sessionId = Date.now().toString();
                 userData.lastUpdated = new Date().toISOString();
                 
-                // Save in users collection
                 const users = this.getData(STORAGE_KEYS.users) || {};
                 users[userData.phone] = userData;
                 this.setData(STORAGE_KEYS.users, users);
                 
-                // Update user sessions
                 this.updateUserSession(userData.phone, userData.sessionId);
                 
                 return userData;
@@ -956,16 +964,6 @@
                 }
             }
 
-            static getAllUsers() {
-                const users = this.getData(STORAGE_KEYS.users) || {};
-                return Object.values(users);
-            }
-
-            static getUserByPhone(phone) {
-                const users = this.getData(STORAGE_KEYS.users) || {};
-                return users[phone] || null;
-            }
-
             static updateUser(phone, updates) {
                 const users = this.getData(STORAGE_KEYS.users) || {};
                 if (users[phone]) {
@@ -985,7 +983,6 @@
                 const content = document.getElementById('notificationContent');
                 const text = document.getElementById('notificationText');
                 
-                // Set notification style based on type
                 const styles = {
                     success: 'bg-green-500',
                     error: 'bg-red-500',
@@ -997,7 +994,6 @@
                 text.textContent = message;
                 notification.classList.remove('hidden');
 
-                // Auto-hide after duration
                 setTimeout(() => {
                     notification.classList.add('hidden');
                 }, duration);
@@ -1020,39 +1016,45 @@
             }
         }
 
-        // Enhanced Game Engine
+        // Enhanced Game Engine with Java-style period generation
         class GameEngine {
             static generatePeriod() {
+                // JavaScript implementation of the Java code
                 const now = new Date();
+                
+                // Get date in yyyyMMdd format
                 const year = now.getFullYear();
                 const month = String(now.getMonth() + 1).padStart(2, '0');
                 const day = String(now.getDate()).padStart(2, '0');
+                const dateStr = `${year}${month}${day}`;
+                
+                // Calculate total minutes since start of day
                 const hours = now.getHours();
                 const minutes = now.getMinutes();
-                const seconds = now.getSeconds();
-                const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
-                const roundNumber = Math.floor(totalSeconds / 30) + 1;
-                return parseInt(`${year}${month}${day}${String(roundNumber).padStart(4, '0')}`);
+                const totalMinutes = hours * 60 + minutes;
+                
+                // Apply the formula from Java code: 10001 + totalMinutes - 330
+                const periodOffset = 10001 + totalMinutes - 330;
+                
+                // Combine: yyyyMMdd + 1000 + periodOffset
+                return parseInt(dateStr + '1000' + periodOffset);
             }
 
             static getTimeLeft() {
                 const now = new Date();
                 const seconds = now.getSeconds();
-                return 30 - (seconds % 30);
+                return 60 - seconds;
             }
 
             static generateResult() {
-                // Check for admin controls
                 const adminControls = DataManager.getData(STORAGE_KEYS.adminControls);
                 if (adminControls && adminControls.nextResult !== undefined) {
                     const result = adminControls.nextResult;
-                    // Clear the admin control after use
                     DataManager.setData(STORAGE_KEYS.adminControls, {});
                     return result;
                 }
                 
-                // Generate weighted random result for better game balance
-                const weights = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]; // Equal weights for fair play
+                const weights = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
                 const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
                 let random = Math.random() * totalWeight;
                 
@@ -1089,16 +1091,13 @@
                     timestamp: Date.now()
                 };
 
-                // Save result
                 const results = DataManager.getData(STORAGE_KEYS.results) || [];
                 results.unshift(gameResult);
-                results.splice(50); // Keep only last 50 results
+                results.splice(50);
                 DataManager.setData(STORAGE_KEYS.results, results);
 
-                // Save last result for synchronization
                 DataManager.setData(STORAGE_KEYS.lastResult, gameResult);
 
-                // Process bets
                 this.processBets(period, result, color, size);
 
                 return gameResult;
@@ -1112,7 +1111,6 @@
                         let isWin = false;
                         let winAmount = 0;
 
-                        // Check win conditions
                         if (bet.type === 'color' && bet.value === color) {
                             isWin = true;
                             winAmount = bet.amount * bet.multiplier;
@@ -1131,7 +1129,6 @@
                         bet.resultSize = size;
                         bet.processedAt = new Date().toISOString();
 
-                        // Update user balance if win
                         if (isWin) {
                             DataManager.updateUserBalance(bet.phone, 
                                 (DataManager.getUser(bet.phone)?.balance || 0) + winAmount);
@@ -1146,22 +1143,14 @@
                 const bets = DataManager.getData(STORAGE_KEYS.bets) || [];
                 return bets.filter(bet => bet.status === 'pending').length;
             }
-
-            static getTodaysBets() {
-                const bets = DataManager.getData(STORAGE_KEYS.bets) || [];
-                const today = new Date().toDateString();
-                return bets.filter(bet => new Date(bet.date).toDateString() === today);
-            }
         }
 
         // Real-time Communication System
         class RealtimeManager {
             static init() {
-                // Listen for data updates
                 window.addEventListener('dataUpdate', this.handleDataUpdate.bind(this));
                 window.addEventListener('storage', this.handleStorageUpdate.bind(this));
                 
-                // Start heartbeat
                 this.startHeartbeat();
             }
 
@@ -1182,7 +1171,6 @@
             }
 
             static processUpdate(key, data) {
-                // Update UI based on data changes
                 if (key === STORAGE_KEYS.userSessions) {
                     this.updateOnlineCount();
                 } else if (key === STORAGE_KEYS.results) {
@@ -1218,9 +1206,7 @@
 
             static handleNewResult(result) {
                 if (result && currentUser) {
-                    // Show result notification
                     this.showResultNotification(result);
-                    // Update user data after result processing
                     setTimeout(() => {
                         updateUserDataUI();
                     }, 1000);
@@ -1231,7 +1217,7 @@
                 const resultElement = document.createElement('div');
                 resultElement.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 border-2 border-red-500 rounded-xl p-6 z-50 text-center slide-in';
                 resultElement.innerHTML = `
-                    <div class="text-white text-xl font-bold mb-2">Period ${result.period}</div>
+                    <div class="text-white text-xl font-bold mb-2 period-display">Period ${result.period}</div>
                     <div class="text-4xl font-bold mb-2" style="color: ${getColorCode(result.color)}">${result.number}</div>
                     <div class="text-white">${result.color.toUpperCase()} • ${result.size.toUpperCase()}</div>
                 `;
@@ -1256,7 +1242,6 @@
             }
 
             static startHeartbeat() {
-                // Update online status every 30 seconds
                 heartbeatInterval = setInterval(() => {
                     DataManager.updateOnlineStatus();
                     this.updateOnlineCount();
@@ -1279,7 +1264,6 @@
             RealtimeManager.init();
             createDemoData();
             
-            // Update online count immediately
             setTimeout(() => {
                 DataManager.updateOnlineStatus();
                 RealtimeManager.updateOnlineCount();
@@ -1288,7 +1272,6 @@
 
         // Create demo data if none exists
         function createDemoData() {
-            // Create demo gift codes
             const giftCodes = DataManager.getData(STORAGE_KEYS.giftCodes) || {};
             if (Object.keys(giftCodes).length === 0) {
                 const demoCodes = {
@@ -1435,7 +1418,6 @@
                 });
             });
 
-            // Prevent form submission on Enter
             document.querySelectorAll('input').forEach(input => {
                 input.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
@@ -1449,7 +1431,6 @@
         function checkLoginStatus() {
             const savedUser = DataManager.getData(STORAGE_KEYS.currentUser);
             if (savedUser) {
-                // Verify the user still exists in the database
                 const userFromDB = DataManager.getUser(savedUser.phone);
                 if (userFromDB) {
                     currentUser = userFromDB;
@@ -1458,7 +1439,6 @@
                     return;
                 }
             }
-            // If no valid user found, show auth screen
             document.getElementById('authScreen').classList.remove('hidden');
             document.getElementById('realtimeStatus').textContent = 'Offline';
         }
@@ -1519,18 +1499,16 @@
                 return;
             }
 
-            // Check if user already exists
             if (DataManager.userExists(phone)) {
                 showError(errorElement, 'Phone number already registered');
                 return;
             }
 
-            // Create new user
             const newUser = {
                 name: name,
                 phone: phone,
                 password: password,
-                balance: 100, // Welcome bonus
+                balance: 100,
                 totalBets: 0,
                 totalWins: 0,
                 joinDate: new Date().toISOString(),
@@ -1571,7 +1549,6 @@
                 return;
             }
 
-            // Update password
             DataManager.updateUser(phone, { password: newPassword });
             
             hideError(errorElement);
@@ -1608,22 +1585,18 @@
         function updateUserDataUI() {
             if (!currentUser) return;
 
-            // Refresh user data from storage
             const userData = DataManager.getUser(currentUser.phone);
             if (userData) {
                 currentUser = userData;
                 DataManager.setData(STORAGE_KEYS.currentUser, userData);
             }
 
-            // Update balance displays
             document.getElementById('userBalance').textContent = currentUser.balance.toFixed(2);
             document.getElementById('walletBalance').textContent = currentUser.balance.toFixed(2);
             
-            // Update profile info
             document.getElementById('profileName').textContent = currentUser.name;
             document.getElementById('profilePhone').textContent = `+91 ${currentUser.phone}`;
             
-            // Update stats
             const bets = DataManager.getData(STORAGE_KEYS.bets) || [];
             const userBets = bets.filter(bet => bet.phone === currentUser.phone);
             const wins = userBets.filter(bet => bet.status === 'win').length;
@@ -1633,7 +1606,6 @@
             document.getElementById('totalWins').textContent = wins;
             document.getElementById('winRate').textContent = winRate + '%';
             
-            // Update history stats
             document.getElementById('userTotalBets').textContent = userBets.length;
             document.getElementById('userWinRate').textContent = winRate + '%';
         }
@@ -1650,20 +1622,23 @@
             document.getElementById('activeBetsCount').textContent = activeBets;
         }
 
-        // Start game timer
+        // Start game timer with 1-minute intervals
         function startGameTimer() {
             gameTimer = setInterval(() => {
                 timeLeft = GameEngine.getTimeLeft();
                 
-                // Update countdown display
-                document.getElementById('countdown').textContent = timeLeft;
+                // Format time as MM:SS
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                const timeDisplay = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                document.getElementById('countdown').textContent = timeDisplay;
                 
-                // Update countdown circle
-                const progress = ((30 - timeLeft) / 30) * 360;
+                // Update countdown circle (1 minute = 60 seconds)
+                const progress = ((60 - timeLeft) / 60) * 360;
                 document.querySelector('.countdown-circle').style.setProperty('--progress', progress + 'deg');
 
-                // Update betting status
-                if (timeLeft <= 5) {
+                // Update betting status - close betting 10 seconds before end
+                if (timeLeft <= 10) {
                     bettingEnabled = false;
                     document.getElementById('bettingStatus').innerHTML = 
                         '<i class="fas fa-circle text-red-400 mr-2"></i>Betting Closed';
@@ -1675,16 +1650,15 @@
                     document.getElementById('bettingSection').classList.remove('betting-disabled');
                 }
 
-                // Update place bet button
                 updateSelectedBetDisplay();
 
-                // Process result when timer hits 0
+                // Process result when timer hits 1 second
                 if (timeLeft === 1) {
                     processGameResult();
                 }
 
-                // Reset for new round
-                if (timeLeft === 30) {
+                // Reset for new round when timer reaches 60 (new minute)
+                if (timeLeft === 60) {
                     updateGameData();
                     selectedBet = null;
                     clearBetSelection();
@@ -1698,7 +1672,6 @@
             const result = GameEngine.generateResult();
             const gameResult = GameEngine.processGameResult(currentPeriod, result);
             
-            // Update UI
             loadRecentResults();
             loadMyBets();
             updateUserDataUI();
@@ -1770,7 +1743,7 @@
                 
                 betDiv.innerHTML = `
                     <div class="flex justify-between items-center mb-2">
-                        <div class="text-sm text-gray-400">Period: ${bet.period}</div>
+                        <div class="text-sm text-gray-400 period-display">Period: ${bet.period}</div>
                         <div class="text-sm ${statusClass} font-semibold">${bet.status.toUpperCase()}</div>
                     </div>
                     <div class="flex justify-between items-center">
@@ -1881,7 +1854,6 @@
                 
                 selectedBetDiv.classList.remove('hidden');
                 
-                // Enable/disable place bet button
                 const canBet = bettingEnabled && amount > 0 && amount <= currentUser.balance;
                 placeBetBtn.disabled = !canBet;
                 
@@ -1919,11 +1891,9 @@
                 return;
             }
             
-            // Deduct amount from balance
             currentUser.balance -= amount;
             DataManager.updateUser(currentUser.phone, { balance: currentUser.balance });
             
-            // Create bet record
             const bet = {
                 id: Date.now().toString(),
                 phone: currentUser.phone,
@@ -1938,17 +1908,14 @@
                 winAmount: 0
             };
             
-            // Save bet
             const bets = DataManager.getData(STORAGE_KEYS.bets) || [];
             bets.unshift(bet);
             DataManager.setData(STORAGE_KEYS.bets, bets);
             
-            // Update UI
             updateUserDataUI();
             loadMyBets();
             updateActiveBetsCount();
             
-            // Clear selection
             selectedBet = null;
             clearBetSelection();
             updateSelectedBetDisplay();
@@ -1960,7 +1927,6 @@
         function switchTab(tab) {
             currentTab = tab;
             
-            // Update navigation buttons
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('text-white');
                 btn.classList.add('text-gray-400');
@@ -1972,12 +1938,10 @@
                 navBtn.classList.add('text-white');
             }
             
-            // Hide all tab contents
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.remove('active');
             });
             
-            // Show/hide back button and show correct content
             const backButton = document.getElementById('backButton');
             if (tab === 'game') {
                 backButton.classList.add('hidden');
@@ -1986,7 +1950,6 @@
                 backButton.classList.remove('hidden');
                 document.getElementById(tab + 'TabContent').classList.add('active');
                 
-                // Load tab-specific data
                 if (tab === 'wallet') {
                     loadTransactionHistory();
                 } else if (tab === 'history') {
@@ -2058,7 +2021,6 @@
                 return;
             }
 
-            // Update password
             currentUser.password = newPassword;
             DataManager.updateUser(currentUser.phone, { password: newPassword });
             
@@ -2086,7 +2048,6 @@
                 return;
             }
             
-            // Create deposit record
             const deposit = {
                 id: Date.now().toString(),
                 phone: currentUser.phone,
@@ -2097,12 +2058,10 @@
                 status: 'completed'
             };
             
-            // Save deposit
             const deposits = DataManager.getData(STORAGE_KEYS.deposits) || [];
             deposits.unshift(deposit);
             DataManager.setData(STORAGE_KEYS.deposits, deposits);
             
-            // Add to balance (auto-approve for demo)
             currentUser.balance += amount;
             DataManager.updateUser(currentUser.phone, { balance: currentUser.balance });
             
@@ -2131,7 +2090,6 @@
                 return;
             }
             
-            // Create withdrawal request
             const withdrawal = {
                 id: Date.now().toString(),
                 phone: currentUser.phone,
@@ -2142,12 +2100,10 @@
                 status: 'pending'
             };
             
-            // Save withdrawal
             const withdrawals = DataManager.getData(STORAGE_KEYS.withdrawals) || [];
             withdrawals.unshift(withdrawal);
             DataManager.setData(STORAGE_KEYS.withdrawals, withdrawals);
             
-            // Deduct from balance
             currentUser.balance -= amount;
             DataManager.updateUser(currentUser.phone, { balance: currentUser.balance });
             
@@ -2244,7 +2200,7 @@
                 
                 betDiv.innerHTML = `
                     <div class="flex justify-between items-center mb-3">
-                        <div class="text-lg font-semibold">Period ${bet.period}</div>
+                        <div class="text-lg font-semibold period-display">Period ${bet.period}</div>
                         <div class="text-sm ${statusColor} font-semibold">${bet.status.toUpperCase()}</div>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
@@ -2300,13 +2256,11 @@
                 return;
             }
             
-            // Mark as used
             giftCode.used = true;
             giftCode.usedBy = currentUser.phone;
             giftCode.usedDate = new Date().toISOString();
             DataManager.setData(STORAGE_KEYS.giftCodes, giftCodes);
             
-            // Add to balance
             currentUser.balance += giftCode.amount;
             DataManager.updateUser(currentUser.phone, { balance: currentUser.balance });
             
@@ -2358,7 +2312,6 @@
 
         // Handle logout
         function handleLogout() {
-            // Clear user session
             if (currentUser) {
                 const sessions = DataManager.getData(STORAGE_KEYS.userSessions) || {};
                 if (sessions[currentUser.phone]) {
@@ -2377,7 +2330,6 @@
             document.getElementById('backButton').classList.add('hidden');
             document.getElementById('realtimeStatus').textContent = 'Offline';
             
-            // Reset forms
             document.getElementById('loginPhone').value = '';
             document.getElementById('loginPassword').value = '';
             document.getElementById('signupName').value = '';
@@ -2393,7 +2345,6 @@
         // Handle page visibility changes
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                // Page is hidden
                 if (currentUser) {
                     const sessions = DataManager.getData(STORAGE_KEYS.userSessions) || {};
                     if (sessions[currentUser.phone]) {
@@ -2402,7 +2353,6 @@
                     }
                 }
             } else {
-                // Page is visible
                 if (currentUser) {
                     DataManager.updateOnlineStatus();
                     RealtimeManager.updateOnlineCount();
